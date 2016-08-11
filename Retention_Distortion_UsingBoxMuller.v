@@ -11,8 +11,8 @@
 // Tool versions: 
 // Description:  part 1. Random number as a address used by rom
 //							 2. Read Rom1 
-// Dependencies: 
-//
+// Dependencies:	mu    = Ks(x-x0)*Kd*N^(0.5) *ln(1 +t/t0) => part1. Ks*Kd*N^(0.5) *ln(1 +t/t0),constant  	part2.(x-x0) 
+//					   sigma	= Ks(x-x0)*Km*N^(0.6) *ln(1 +t/t0) => part1. Ks*Km*N^(0.6) *ln(1 +t/t0),constant    part2.(x-x0)
 // Revision: 
 // Revision 0.01 - File Created
 // Additional Comments: 
@@ -34,17 +34,17 @@ module Retention_Distortion_UsingBoxMuller(
 
 	reg									SetRandomSeed=1'd0;
 	reg				[15:0]			VoltageAfterRetention;			
-	reg									outputValidReg,symbol;
+	reg									outputValidReg,symbol,symbolDelay;
 	reg				[15:0]			deltaVth;
 	reg				[15:0]			sigma,sigmaRom_1;
 	reg				[31:0]			sigma_d;
 	reg				[31:0]			mu_d;
-	reg				[15:0]			mu_d_16bits,mu_d_16bitsDelay,mu_d_16bitsDelay1;
+	reg				[15:0]			mu_d_16bits,mu_d_16bitsDelay;
 	reg				[15:0]			Pt,mu_dTmp,sigma_dTmp;
 	
 	reg				[15:0]			delta1,gvgTmp_16;
-	reg				[31:0]			Pt_d,Pt_32bits,gvgTmp_31;
-	reg				[31:0]			Vth_delay,Vth_delay1,Vth_delay2,Vth_delay3,Vth_delay4,Vth_delay5,Vth_delay6,Vth_delay7,Vth_delay8,Vth_delay9,Vth_delay10;
+	reg				[31:0]			Pt_d,gvgTmp_31;
+	reg				[31:0]			Vth_delay,Vth_delay1,Vth_delay2,Vth_delay3,Vth_delay4,Vth_delay5,Vth_delay6,Vth_delay7,Vth_delay8;
 		
 	wire				[6:0]				romAddr;
 	wire				[6:0]				romAddrN;
@@ -112,9 +112,9 @@ module Retention_Distortion_UsingBoxMuller(
 				end	// end of if (reset)
 			end //end always		
 
-			assign romAddr  = deltaVth[12:6] ;				// 16 bits ,7 bits as address -- 0.03125 * 2^11 =64(means that delta voltage contain (Vth/64) deltas) , 6 bits as insert address
+			assign romAddr  = deltaVth[12:6] ;				// 16 bits ,7 bits as address -- 0.03125 * 2^11 =64(means that delta voltage contain (Vth/64) deltas)
 			assign romAddrN = deltaVth[12:6] + 1'b1;		
-//			assign insertAddr  = deltaVth[5:0];
+
 //************ read sigma  7 bits expand to 16 bits***************************									
 		retentionRomSigma	retentionRomSigma_uut(
 						  .clka(clk),
@@ -150,27 +150,31 @@ module Retention_Distortion_UsingBoxMuller(
 		else 
 		begin
 			//** step 1 **// checked
-			Vth_delay1 	<= Vth_delay;
+			Vth_delay1 	<= Vth_delay;					// delay  beacause of reading Rom--retentionRomSigma, it takes one time solt
 			
-			delta1 		<= sigmaRomN - sigmaRom;
-			Vth_delay2 	<= Vth_delay1;
-			sigmaRom_1  <= sigmaRom;
+			delta1 		<= sigmaRomN - sigmaRom;	//	 used as 1 bit insert
+			Vth_delay2 	<= Vth_delay1;					// delay for step 1
+			sigmaRom_1  <= sigmaRom;					// delay
 			
 			
 			//** step 2 **//     checked
-			sigma 		<= delta1[15:1] + sigmaRom_1;				//   sqrt(sigma)   * 'sqrt(Vth - x0)'
+			sigma 		<= delta1[15:1] + sigmaRom_1;				//   sqrt(sigma)   * 'sqrt(Vth - x0)' ,part2 
 			Vth_delay3 	<= Vth_delay2;
 			
 			//** step 3 **//     checked
-			sigma_d 		<= squrtSigma * sigma  ;					//	 'sqrt(sigma)'  *  sqrt(Vth - x0)
-			mu_d  		<= (Vth_delay3[31:16]- Vth_delay3[15:0]) * mu;
+			//????????
+			sigma_d 		<= squrtSigma * sigma  ;					//	 'sqrt(sigma)'  *  sqrt(Vth - x0)  , part1 + part2    sigma_d = Ks*Km*Cycle^0.6*log(1+t/t0)
+			mu_d  		<= (Vth_delay3[31:16]- Vth_delay3[15:0]) * mu;	// mu
 			Vth_delay4 	<= Vth_delay3;
 			
-			//** step 4 **//    checked
-			if (PtxAddr[20] == 1'b1)  // -delay1
+			//** step 4 *****//    checked
+	//*********?????????0??,1???,?????????????????**************//
+			if (PtxAddr[20] == 1'b1)  // -delay1 ??????????(?????2????),PtxAddr[20]????????????,???????????
 			begin
-				gvgTmp_16<=(gvg_sin[15]==0 )?gvg_sin:{gvg_sin[15],~gvg_sin[14:0]+1'b1};
-				sigma_dTmp <= sigma_d[26:11];
+				//??RNG?????????,?????,????????,??????????,???????????
+					// ????
+				gvgTmp_16<=(gvg_sin[15]==0 )?gvg_sin:{gvg_sin[15],~gvg_sin[14:0]+1'b1};	//negative number
+				sigma_dTmp <= sigma_d[26:11];															
 				mu_dTmp <= mu_d[26:11];
 				Vth_delay5 	<= Vth_delay4;
 			end	// end (PtxAddr[20] == 1'b1)
@@ -181,51 +185,50 @@ module Retention_Distortion_UsingBoxMuller(
 				mu_dTmp <= mu_d[26:11];
 				Vth_delay5 	<= Vth_delay4;
 			end	//end of	(PtxAddr[20] == 1'b1)
-			//*******************************************
 			
-			gvgTmp_31 <= gvgTmp_16[14:0] * sigma_dTmp[14:0];
+			//** step 5 **//    checked  
+				// ????
+			gvgTmp_31 <= gvgTmp_16[14:0] * sigma_dTmp[14:0]; //checked
 			mu_d_16bits <= mu_dTmp;
 			symbol <= gvgTmp_16[15];
 			Vth_delay6 	<= Vth_delay5;
-			
-			Pt_32bits <= (symbol==0)?gvgTmp_31:{symbol,~gvgTmp_31[30:0]+1'b1};
-			mu_d_16bitsDelay <= mu_d_16bits;
-			Vth_delay7 	<= Vth_delay6;
 
+			//** step 6 **//  checked
+				// ????
+			Pt_d <= (symbol==0)?gvgTmp_31:{symbol,~gvgTmp_31[30:0]+1'b1};
+			mu_d_16bitsDelay <= mu_d_16bits;
+			Vth_delay7 	<=  Vth_delay6;
 			
 			//** step 7 **//
-			Pt_d 			<=  Pt_32bits[26:11]* squrtSigma;
-			mu_d_16bitsDelay1 <= mu_d_16bitsDelay;
+				// ????
+			Pt   			<=  Pt_d[26:11] + mu_d_16bitsDelay;
 			Vth_delay8 	<=  Vth_delay7;
 			
 			//** step 8 **//
-			Pt   			<=  Pt_d[26:11] + mu_d_16bitsDelay1;
-			Vth_delay9 	<=  Vth_delay8;
-			
-			//** step 9 **//
-			case (Vth_delay9[1:0])
+				//?? retention ??
+			case (Vth_delay8[1:0])
 			2'd0:
 					begin
-						VoltageAfterRetention <= Vth_delay9[31:16] ;
+						VoltageAfterRetention <= Vth_delay8[31:16] ;
 						outputValidReg <= 1'b1;
 					end
 			2'd1:
 					begin
-						VoltageAfterRetention <= Vth_delay9[31:16] - Pt ;
+						VoltageAfterRetention <= Vth_delay8[31:16] - Pt ;
 						outputValidReg <= 1'b1;
 					end
 			2'd2:
 					begin
-						VoltageAfterRetention <= Vth_delay9[31:16] - Pt ;
+						VoltageAfterRetention <= Vth_delay8[31:16] - Pt ;
 						outputValidReg <= 1'b1;
 					end
 			2'd3:
 					begin
-						VoltageAfterRetention <= Vth_delay9[31:16] - Pt;
+						VoltageAfterRetention <= Vth_delay8[31:16] - Pt;
 						outputValidReg <= 1'b1;
 					end
 				default:	
-					VoltageAfterRetention <= Vth_delay9[31:16];
+					VoltageAfterRetention <= Vth_delay8[31:16];
 			endcase 
 		end	// end of if reset
 	end	// end of always

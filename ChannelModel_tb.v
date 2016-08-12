@@ -108,14 +108,15 @@ module ChannelModel_tb;
 			out_temp4 = output_v4[31:16];
 			out_temp5 = output_v5;
 			
+			if(cnt > 80)
+			begin
 			$fwrite(dataFile1,"\n %d",$signed(out_temp1));
 			$fwrite(dataFile2,"\n %d",out_temp2);
 			$fwrite(dataFile3,"\n %d",out_temp3);
 			$fwrite(dataFile4,"\n %d",out_temp4);
-			if(cnt > 30)
 			$fwrite(dataFile5,"\n %d",out_temp5);
-			
 			$display ("%d \n" ,out_temp5);
+			end
 			
 		end
  

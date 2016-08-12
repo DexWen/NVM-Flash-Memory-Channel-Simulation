@@ -41,6 +41,7 @@ module RTN_distortion(
 	wire				[15:0]			Vr;
 	wire				[31:0]			VrAddr_32;	
 	wire				[10:0]			VrAddr_11;
+	wire				[9:0]				VrAddr_10;
 	wire									rstTmp;
 	
 	
@@ -83,12 +84,25 @@ module RTN_distortion(
 	//************  random address to get a random expomential parameter with lambda=Kr*sqrt(Cycle) **********//
 	// 1.  Kr=0.00025, Cycle=10000, for easier caculattion -> lambda* 2^11  **************//
 	// 2.  All lambda data was generate by matlab and save in Rom   Vr=exprnd(lambda)  lambda=Kr*sqrt(Cycle); Vth = Vth +/- Vr  ********//
-	//                                                       DataInRom=fix(Vr*(2^11))                 
+	//                                                       DataInRom=fix(Vr*(2^11))     	
+
+		assign VrAddr_11=VrAddr_32[25:15];	
 	 expomential_Rom Vr_uut(
 					  .clka(clk),
 					  .addra(VrAddr_11),
 					  .douta(Vr)
-						);
+						); 						
+						
+	//*********** Cycle = 100 **********//					
+/*	assign VrAddr_10=VrAddr_32[25:16];	
+	
+	 expomential_Rom_Cycle100 Vr_uut(
+					  .clka(clk),
+					  .addra(VrAddr_10),
+					  .douta(Vr)
+						);			*/		
+						
+						
 						
 	//**************** Add TRN  Distortion  ************************//
 	//************ Vth= Vth + Vr * sign (rand-0.5) ******************//	

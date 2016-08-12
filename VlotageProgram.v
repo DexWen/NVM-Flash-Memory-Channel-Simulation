@@ -71,7 +71,7 @@
 	
 	
 	
-	parameter  RANDOMSEED  					= 		32'h71422016;	
+	parameter  RANDOMSEED  					= 		32'h482B_B056;	
 	parameter  stepVoltage_02V 			= 		16'd410;  				// 0.2V * 2^11 =410
 	parameter  stepVoltage_03V 			=	 	16'd614;  				// 0.3V * 2^11 =614
 	parameter  ErasedState_mean 			= 		16'd2867;			// 1.1V * 2^11 =2252.8	/ 1.4V * 2^11 = 2867	

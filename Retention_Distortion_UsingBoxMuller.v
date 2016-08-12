@@ -33,42 +33,64 @@ module Retention_Distortion_UsingBoxMuller(
 	reg 				[31:0]			randomSeed=32'h97B41E82;
 
 	reg									SetRandomSeed=1'd0;
-	reg				[15:0]			VoltageAfterRetention;			
+	reg				[15:0]			VoltageAfterRetention;	
+	
 	reg									outputValidReg,symbol,symbolDelay;
 	reg				[15:0]			deltaVth;
-	reg				[15:0]			sigma,sigmaRom_1;
-	reg				[31:0]			sigma_d;
-	reg				[31:0]			mu_d;
-	reg				[15:0]			mu_d_16bits,mu_d_16bitsDelay;
-	reg				[15:0]			Pt,mu_dTmp,sigma_dTmp;
 	
-	reg				[15:0]			delta1,gvgTmp_16;
-	reg				[31:0]			Pt_d,gvgTmp_31;
+	//** mu and sigma ****//
+	reg				[15:0]			   mu_delay1, mu_delay2,mu_delay3;
+	reg				[15:0]			sigma_delay, sigma,sigmaRom_1;
+	reg				[31:0]			mu_d,sigma_d;
+	
+	reg				[15:0]			Pt,delta1 ,gvgTmp_16;
+	reg				[31:0]			Pt_d,gvgTmp_32;
+	
 	reg				[31:0]			Vth_delay,Vth_delay1,Vth_delay2,Vth_delay3,Vth_delay4,Vth_delay5,Vth_delay6,Vth_delay7,Vth_delay8;
 		
-	wire				[6:0]				romAddr;
-	wire				[6:0]				romAddrN;
-	wire				[15:0]			gvg_sin;
-	wire				[15:0]			gvg_cos;
+	wire				[6:0]				romAddr,romAddrN;
+	
+	wire				[15:0]			gvg_sin,gvg_cos;
 	wire				[15:0]			sigmaRom,sigmaRomN;
 	wire				[31:0]			PtxAddr;
-	
-	
-
-
-
 	wire									rstTmp;
 	wire									gvg_flag;
 	
-	parameter  RANDOMSEED				=	32'h3721AD74;  //random number seed
+	parameter  RANDOMSEED				=	32'h9D21_A174;  //random number seed
 	parameter  mean_1 					= 	16'b0;
    parameter  StandardDeviation_0 	= 	16'b1;
-		
-	parameter  squrtSigma 				= 	136;         // Ks=0.38, Km=4e(-6), Cycle=10^4, t=10^5, t0=1,   sigma = Ks*Km*Cycle^0.6*log(1+t/t0);  sigma_d = sqrt(sigma * (Vth - x0)) = sqrt(sigma) * sqrt(Vth - x0) = 'squrtSigma' * sqrt(Vth - x0) //squrtSigma=135.7825
-   parameter  mu         				=  358 ;       // Kd=10e(-4)                                         mu = Ks*Kd*Cycle^0.5*log(1+t/t0);  mu_d    = mu * (Vth - x0)   // mu=358.3913
+	
+	//************** sigma ****************//
+	// Ks=0.38, Km=4e(-6), Cycle=10^4, t=10^5, t0=1,   
+	// sigma = Ks*Km*Cycle^0.6*log(1+t/t0);  
+	// squrtSigma= sqrt(Ks*Km*Cycle^0.6*log(1+t/t0))= sqrt( (0.38) * (4e(-6)) * ((10000)^(-6)) * log(1+100000/1) ) = 0.0663 
+	// sigma_d = sqrt(sigma * (Vth - x0)) = sqrt(sigma) * sqrt(Vth - x0) = 'squrtSigma' * sqrt(Vth - x0)	
+	// 0.0663 * (2^11)=> 135.7825
+	// ******* set 2 **************	
+	// 2. Cycle=100 t= 720 (1 month = 720 hours)
+	// squrtSigma= sqrt(Ks*Km*Cycle^0.6*log(1+t/t0))= sqrt( (0.38) * (4e(-6)) * ((100)^(-6)) * log(1+720/1) ) = 0.0126
+	// 0.0126 * (2^11) = 25.7861
+	// ******* set 3 **************	
+	//	Cycle = 10000 t= 87600 (10 year)
+	// squrtSigma = 0.0659  => * 2^11 => 134.999
+	
+	//************ mu *********************//
+	// Kd=10e(-4)        
+	// mu = Ks*Kd*Cycle^0.5*log(1+t/t0) = (0.38) * (10e(-4)) * ((10000)^(-5)) * log(1+100000/1) = 0.1750;
+   //	mu_d    = mu * (Vth - x0)   
+	// mu= 0.1750 * 2^11 = 358.3913
+	// ******* set 2 **************	
+	// 2. Cycle=100 t= 720 (1 month = 720 hours)
+	// mu = Ks*Kd*Cycle^0.5*log(1+t/t0) = (0.38) * (10e(-4)) * ((100)^(-5)) * log(1+720/1) = 0.01;
+   //	mu_d    = mu * (Vth - x0)   
+	// mu= 0.01 * 2^11 = 20.4853
+	// ******* set 3 **************	
+	//	Cycle = 10000 t= 87600 (10 year)
+	// mu = 0.1730 => * 2^11 => 354 
+	parameter  squrtSigma 				= 	135;         
+   parameter  mu         				=  354 ;       
 	
 	assign 	  rstTmp 					= 	~reset;					//RNG reset
-		
 		
 	//******** Generate a ramdon number as a ROM address **********//
 		always @ (posedge clk or posedge reset)
@@ -174,34 +196,34 @@ module Retention_Distortion_UsingBoxMuller(
 				//??RNG?????????,?????,????????,??????????,???????????
 					// ????
 				gvgTmp_16<=(gvg_sin[15]==0 )?gvg_sin:{gvg_sin[15],~gvg_sin[14:0]+1'b1};	//negative number
-				sigma_dTmp <= sigma_d[26:11];															
-				mu_dTmp <= mu_d[26:11];
+				sigma_delay <= sigma_d[26:11];															
+				mu_delay1 <= mu_d[26:11];
 				Vth_delay5 	<= Vth_delay4;
 			end	// end (PtxAddr[20] == 1'b1)
 			else
 			begin
 				gvgTmp_16<=(gvg_cos[15]==0 )?gvg_cos:{gvg_cos[15],~gvg_cos[14:0]+1'b1};
-				sigma_dTmp <= sigma_d[26:11];
-				mu_dTmp <= mu_d[26:11];
+				sigma_delay <= sigma_d[26:11];
+				mu_delay1 <= mu_d[26:11];
 				Vth_delay5 	<= Vth_delay4;
 			end	//end of	(PtxAddr[20] == 1'b1)
 			
 			//** step 5 **//    checked  
 				// ????
-			gvgTmp_31 <= gvgTmp_16[14:0] * sigma_dTmp[14:0]; //checked
-			mu_d_16bits <= mu_dTmp;
+			gvgTmp_32 <= gvgTmp_16[14:0] * sigma_delay[14:0]; //checked
+			mu_delay2 <= mu_delay1;
 			symbol <= gvgTmp_16[15];
 			Vth_delay6 	<= Vth_delay5;
 
 			//** step 6 **//  checked
 				// ????
-			Pt_d <= (symbol==0)?gvgTmp_31:{symbol,~gvgTmp_31[30:0]+1'b1};
-			mu_d_16bitsDelay <= mu_d_16bits;
+			Pt_d <= (symbol==0)?gvgTmp_32:{symbol,~gvgTmp_32[30:0]+1'b1};
+			mu_delay3 <= mu_delay2;
 			Vth_delay7 	<=  Vth_delay6;
 			
 			//** step 7 **//
 				// ????
-			Pt   			<=  Pt_d[26:11] + mu_d_16bitsDelay;
+			Pt   			<=  Pt_d[26:11] + mu_delay3;
 			Vth_delay8 	<=  Vth_delay7;
 			
 			//** step 8 **//
